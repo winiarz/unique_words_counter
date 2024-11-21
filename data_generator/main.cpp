@@ -45,14 +45,7 @@ int main(int argc, char* argv[])
 
 		for(int i=0; i<newWordLen; i++)
 		{
-			if(rand()%2 == 0)
-			{
-				newWord[i] = 'a' + rand() % ('z' - 'a');
-			}
-			else
-			{
-				newWord[i] = 'A' + rand() % ('Z' - 'A');
-			}
+			newWord[i] = 'a' + rand() % ('z' - 'a');
 		}
 
 		if(rand()%10 == 0)
