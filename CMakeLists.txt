@@ -6,5 +6,6 @@ add_executable(generator
 
 add_executable(counter
                source/main.cpp
-			   source/WordsRangesContainer)
+			   source/WordsRangesContainer.cpp
+			   source/compressWord.cpp)
 
