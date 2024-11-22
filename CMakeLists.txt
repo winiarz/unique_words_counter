@@ -8,5 +8,6 @@ add_executable(counter
                source/main.cpp
 			   source/WordsRangesContainer.cpp
 			   source/compressWord.cpp
-			   source/sort.cpp)
+			   source/sort.cpp
+			   source/merge.cpp)
 
