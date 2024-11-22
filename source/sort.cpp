@@ -7,14 +7,16 @@ void sortRangeWithDuplicatesRemoval(WordCompressed* workspace, WordsRange& range
 	     workspace + range.end);
 
 	unsigned long long removed = 0; 
+
 	for(unsigned long long i=range.start; i<range.end - removed - 1; i++)
 	{
-		if(workspace[i] == workspace[i+removed+1])
+		while((workspace[i] == workspace[i+removed+1]) and (i<range.end - removed-1))
 		{
 			removed++;
 		}
-		workspace[i] = workspace[i+removed];
+		workspace[i+1] = workspace[i+removed+1];
 	}
+
 	range.end -= removed;
 }
 

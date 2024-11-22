@@ -1,16 +1,17 @@
 #pragma once
 #include <list>
+#include <mutex>
 #include "constants.hpp"
 
 using namespace std;
 
 struct WordsRange {
 WordsRange(unsigned long long p_start, unsigned long long p_end) :
-	start(p_start), end(p_end), isSorted(false)
+	start(p_start), end(p_end), isSorted(false), isLocked(false)
 	{}
 
 unsigned long long start, end;
-bool isSorted;
+bool isSorted, isLocked;
 };
 
 struct WordsRangeMergingParams {
@@ -23,6 +24,7 @@ class WordsRangesContainer {
 private:
 	list<WordsRange> wordsRanges;
 	WordsRange emptyRange;
+	mutex accessMutex;
 public:
 	WordsRangesContainer() :
 		emptyRange(0,0) {}

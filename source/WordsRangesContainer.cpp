@@ -3,6 +3,8 @@
 
 void WordsRangesContainer::printAllRanges()
 {
+	lock_guard accessLock(accessMutex);
+
 	for(auto& range : wordsRanges)
 	{
 		cout << "[" << range.start << ", " << range.end << "]" << endl;
@@ -11,9 +13,11 @@ void WordsRangesContainer::printAllRanges()
 
 WordsRange& WordsRangesContainer::createNewRangeForReading()
 {
+	lock_guard accessLock(accessMutex);
 	if(wordsRanges.empty())
 	{
 		wordsRanges.push_back(WordsRange(0, MAX_READ_SIZE));
+		wordsRanges.begin()->isLocked = true;
 		return *wordsRanges.begin();
 	}
 
@@ -29,6 +33,7 @@ WordsRange& WordsRangesContainer::createNewRangeForReading()
 		if(foundRangeSize >= MAX_READ_SIZE)
 		{
 			auto newRange = wordsRanges.insert(i, WordsRange(lastRangeEnd, MAX_READ_SIZE));
+			newRange->isLocked = true;
 			return *newRange;
 		}
 
@@ -51,11 +56,13 @@ WordsRange& WordsRangesContainer::createNewRangeForReading()
 		if(foundRangeSize >= MAX_READ_SIZE)
 		{
 			wordsRanges.push_back(WordsRange(lastRangeEnd, lastRangeEnd+MAX_READ_SIZE));
+			wordsRanges.rbegin()->isLocked = true;
 			return *wordsRanges.rbegin();
 		}
 		else if(foundRangeSize > maxFoundFreeSpace)
 		{
 			wordsRanges.push_back(WordsRange(lastRangeEnd, lastRangeEnd+foundRangeSize));
+			wordsRanges.rbegin()->isLocked = true;
 			return *wordsRanges.rbegin();
 		}
 	}
@@ -63,6 +70,7 @@ WordsRange& WordsRangesContainer::createNewRangeForReading()
 	if(maxFoundFreeSpace > 0)
 	{
 		auto newRange = wordsRanges.insert(maxFoundFreeSpaceIt, WordsRange(maxFoundFreeSpaceStart, maxFoundFreeSpaceStart+maxFoundFreeSpace));
+		newRange->isLocked = true;
 		return *newRange;
 	}
 
@@ -71,10 +79,15 @@ WordsRange& WordsRangesContainer::createNewRangeForReading()
 
 WordsRange& WordsRangesContainer::getRangeForSorting()
 {
+	lock_guard accessLock(accessMutex);
+
 	for(auto i = wordsRanges.begin(); i!= wordsRanges.end(); i++)
 	{
-		if(not i->isSorted)
+		if((not i->isSorted) and (not i->isLocked))
+		{
+			i->isLocked = true;
 			return *i; 
+		}
 	}
 
 	return emptyRange;
@@ -82,6 +95,8 @@ WordsRange& WordsRangesContainer::getRangeForSorting()
 
 WordsRangeMergingParams WordsRangesContainer::prepareBestRangeForMerging()
 {
+	lock_guard accessLock(accessMutex);
+
 	if(wordsRanges.size() < 2)
 	{
 		WordsRangeMergingParams emptyMergingParams {emptyRange, 0,0,0,0};
@@ -97,7 +112,8 @@ WordsRangeMergingParams WordsRangesContainer::prepareBestRangeForMerging()
 
 	for( ;  rightRangeToMerge != wordsRanges.end(); rightRangeToMerge++)
 	{
-		if(leftRangeToMerge->isSorted && rightRangeToMerge->isSorted)
+		if((leftRangeToMerge->isSorted && rightRangeToMerge->isSorted) and
+			(not leftRangeToMerge->isLocked && not rightRangeToMerge->isLocked))
 		{
 			unsigned long long rangeToBeLocked = rightRangeToMerge->end - leftRangeToMerge->start;
 			if(rangeToBeLocked < shortestRangeToBeLocked)
@@ -117,6 +133,7 @@ WordsRangeMergingParams WordsRangesContainer::prepareBestRangeForMerging()
 														bestLeftRangeToMerge->end,
 														bestRightRangeToMerge->start,
 														bestRightRangeToMerge->end};
+		bestLeftRangeToMerge->isLocked = true;
 		bestLeftRangeToMerge->end = bestRightRangeToMerge->end;
 		wordsRanges.erase(bestRightRangeToMerge);
 		return bestRangeMergingParams;
@@ -128,6 +145,8 @@ WordsRangeMergingParams WordsRangesContainer::prepareBestRangeForMerging()
 
 unsigned long long WordsRangesContainer::getSizeOfFirstRange()
 {
+	lock_guard accessLock(accessMutex);
+
 	if(wordsRanges.empty())
 	{
 		return 0;
