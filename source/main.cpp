@@ -23,7 +23,7 @@ void fileReading(string fileName,
 		auto& readingRange = rangesContainer->createNewRangeForReading();
 		if(readingRange.end == 0)
 		{
-			continue; // TODO shall wait until some space is available for file reading
+			continue;
 		}
 
 		unsigned long long mainWorkspaceIdx = readingRange.start;
@@ -42,8 +42,6 @@ void fileReading(string fileName,
 	fileReadingDone = true;
 }
 
-atomic<int> sortedRanges=0;
-
 void sortAndMerge(WordsRangesContainer* rangesContainer,
 				  WordCompressed* mainWorkspace)
 {
@@ -55,8 +53,8 @@ void sortAndMerge(WordsRangesContainer* rangesContainer,
 			sortRangeWithDuplicatesRemoval(mainWorkspace, *sortingRange);
 			sortingRange->isSorted = true;
 			sortingRange->isLocked = false;
-			sortedRanges++; cout << "SortedRanges " << sortedRanges << endl;
-			
+			rangesContainer->markPossibleFreeSpace();
+
 			continue;	
 		}
 
@@ -65,6 +63,7 @@ void sortAndMerge(WordsRangesContainer* rangesContainer,
 			WordsRangeMergingParams mergingParams = rangesContainer->prepareBestRangeForMerging();
 			mergeRangesWithDuplicatesRemoval(mainWorkspace, mergingParams);
 			mergingParams.resultRange.isLocked = false;
+			rangesContainer->markPossibleFreeSpace();
 			continue;
 		}
 
@@ -77,7 +76,7 @@ void sortAndMerge(WordsRangesContainer* rangesContainer,
 		sortRangeWithDuplicatesRemoval(mainWorkspace, *sortingRange);
 		sortingRange->isSorted = true;
 		sortingRange->isLocked = false;
-		sortedRanges++; cout << "SortedRanges " << sortedRanges << endl;
+		rangesContainer->markPossibleFreeSpace();
 
 		sortingRange = &rangesContainer->getRangeForSorting();
 	}
@@ -87,6 +86,7 @@ void sortAndMerge(WordsRangesContainer* rangesContainer,
 		WordsRangeMergingParams mergingParams = rangesContainer->prepareBestRangeForMerging();
 		mergeRangesWithDuplicatesRemoval(mainWorkspace, mergingParams);
 		mergingParams.resultRange.isLocked = false;
+		rangesContainer->markPossibleFreeSpace();
 	}
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 #include <list>
 #include <mutex>
+#include <condition_variable>
 #include "constants.hpp"
 
 using namespace std;
@@ -24,10 +25,16 @@ class WordsRangesContainer {
 private:
 	list<WordsRange> wordsRanges;
 	WordsRange emptyRange;
+
 	mutex accessMutex;
+	mutex freeSpaceForReading;
+	condition_variable freeSpaceForReadingCv;
+	bool possibleFreeSpaceForReading;
 public:
 	WordsRangesContainer() :
-		emptyRange(0,0) {}
+		emptyRange(0,0),
+		possibleFreeSpaceForReading(true)
+		{}
 
 	void printAllRanges();
 	WordsRange& createNewRangeForReading();
@@ -35,5 +42,10 @@ public:
 	WordsRangeMergingParams prepareBestRangeForMerging();
 	bool areMultipleRanges() {return wordsRanges.size()>=2;}
 	unsigned long long getSizeOfFirstRange();
+	void markPossibleFreeSpace()
+	{
+		possibleFreeSpaceForReading=true;
+		freeSpaceForReadingCv.notify_one();
+	}
 };
 

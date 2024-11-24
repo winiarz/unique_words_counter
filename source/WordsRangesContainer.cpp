@@ -13,6 +13,7 @@ void WordsRangesContainer::printAllRanges()
 
 WordsRange& WordsRangesContainer::createNewRangeForReading()
 {
+	{
 	lock_guard accessLock(accessMutex);
 	if(wordsRanges.empty())
 	{
@@ -73,7 +74,11 @@ WordsRange& WordsRangesContainer::createNewRangeForReading()
 		newRange->isLocked = true;
 		return *newRange;
 	}
+	}
 
+	possibleFreeSpaceForReading  = false;
+	unique_lock<mutex> lk(freeSpaceForReading);
+	freeSpaceForReadingCv.wait(lk, [&] {return possibleFreeSpaceForReading;});
 	return emptyRange;
 }
 
