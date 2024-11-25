@@ -5,6 +5,7 @@ void WordsRangesContainer::printAllRanges()
 {
 	lock_guard accessLock(accessMutex);
 
+
 	for(auto& range : wordsRanges)
 	{
 		cout << "[" << range.start << ", " << range.end << "]" << endl;
@@ -15,11 +16,13 @@ WordsRange& WordsRangesContainer::createNewRangeForReading()
 {
 	{
 	lock_guard accessLock(accessMutex);
+
 	if(wordsRanges.empty())
 	{
 		wordsRanges.push_back(WordsRange(0, MAX_READ_SIZE));
 		wordsRanges.begin()->isLocked = true;
 		return *wordsRanges.begin();
+
 	}
 
 	unsigned long long maxFoundFreeSpace = 0;
@@ -33,7 +36,7 @@ WordsRange& WordsRangesContainer::createNewRangeForReading()
 
 		if(foundRangeSize >= MAX_READ_SIZE)
 		{
-			auto newRange = wordsRanges.insert(i, WordsRange(lastRangeEnd, MAX_READ_SIZE));
+			auto newRange = wordsRanges.insert(i, WordsRange(lastRangeEnd, lastRangeEnd+MAX_READ_SIZE));
 			newRange->isLocked = true;
 			return *newRange;
 		}
@@ -74,17 +77,24 @@ WordsRange& WordsRangesContainer::createNewRangeForReading()
 		newRange->isLocked = true;
 		return *newRange;
 	}
-	}
+
+	} // end of access lock
 
 	possibleFreeSpaceForReading  = false;
 	unique_lock<mutex> lk(freeSpaceForReading);
-	freeSpaceForReadingCv.wait(lk, [&] {return possibleFreeSpaceForReading;});
+	freeSpaceForReadingCv.wait(lk, [&] {return possibleFreeSpaceForReading or workFinished;});
 	return emptyRange;
 }
 
 WordsRange& WordsRangesContainer::getRangeForSorting()
 {
+	{
 	lock_guard accessLock(accessMutex);
+
+	if(workFinished)
+	{
+		return emptyRange;
+	}
 
 	for(auto i = wordsRanges.begin(); i!= wordsRanges.end(); i++)
 	{
@@ -95,6 +105,12 @@ WordsRange& WordsRangesContainer::getRangeForSorting()
 		}
 	}
 
+	possibleSortWork  = false;
+	} // end of access lock
+
+	unique_lock<mutex> lk(sortWork);
+	sortWorkCv.wait(lk, [&] {return possibleSortWork or workFinished;});
+
 	return emptyRange;
 }
 
@@ -104,6 +120,7 @@ WordsRangeMergingParams WordsRangesContainer::prepareBestRangeForMerging()
 
 	if(wordsRanges.size() < 2)
 	{
+		possibleMergeWork = false;
 		WordsRangeMergingParams emptyMergingParams {emptyRange, 0,0,0,0};
 		return emptyMergingParams;
 	}
@@ -144,6 +161,7 @@ WordsRangeMergingParams WordsRangesContainer::prepareBestRangeForMerging()
 		return bestRangeMergingParams;
 	}
 
+	possibleMergeWork = false;
 	WordsRangeMergingParams emptyMergingParams {emptyRange, 0,0,0,0};
 	return emptyMergingParams;
 }
@@ -152,6 +170,7 @@ unsigned long long WordsRangesContainer::getSizeOfFirstRange()
 {
 	lock_guard accessLock(accessMutex);
 
+
 	if(wordsRanges.empty())
 	{
 		return 0;
@@ -159,3 +178,47 @@ unsigned long long WordsRangesContainer::getSizeOfFirstRange()
 
 	return wordsRanges.begin()->end - wordsRanges.begin()->start;
 }
+
+bool WordsRangesContainer::areMultipleOrUnsortedRanges()
+{
+	lock_guard accessLock(accessMutex);
+	if(wordsRanges.size() >= 2)
+	{
+		return true;
+	}
+	for(auto& range : wordsRanges)
+	{
+		if(not range.isSorted)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void WordsRangesContainer::markPossibleFreeSpace()
+{
+	possibleFreeSpaceForReading=true;
+	freeSpaceForReadingCv.notify_one();
+}
+
+void WordsRangesContainer::markPossibleMergeWork()
+{
+	possibleMergeWork=true;
+	mergeWorkCv.notify_all();
+}
+
+void WordsRangesContainer::markPossibleSortWork()
+{
+	possibleSortWork=true;
+	sortWorkCv.notify_all();
+}
+
+void WordsRangesContainer::notifyWorkFinished()
+{
+	workFinished = true;
+	sortWorkCv.notify_all();
+	mergeWorkCv.notify_all();
+}
+

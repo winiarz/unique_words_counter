@@ -27,25 +27,46 @@ private:
 	WordsRange emptyRange;
 
 	mutex accessMutex;
+	
 	mutex freeSpaceForReading;
 	condition_variable freeSpaceForReadingCv;
 	bool possibleFreeSpaceForReading;
+
+	mutex sortWork;
+	condition_variable sortWorkCv;
+	bool possibleSortWork;
+
+	mutex mergeWork;
+	condition_variable mergeWorkCv;
+	bool possibleMergeWork;
+
+	bool workFinished;
 public:
 	WordsRangesContainer() :
 		emptyRange(0,0),
-		possibleFreeSpaceForReading(true)
+		possibleFreeSpaceForReading(true),
+		possibleSortWork(false),
+		possibleMergeWork(false),
+		workFinished(false)
 		{}
 
 	void printAllRanges();
 	WordsRange& createNewRangeForReading();
 	WordsRange& getRangeForSorting();
 	WordsRangeMergingParams prepareBestRangeForMerging();
-	bool areMultipleRanges() {return wordsRanges.size()>=2;}
-	unsigned long long getSizeOfFirstRange();
-	void markPossibleFreeSpace()
+
+	void waitForMergingWork()
 	{
-		possibleFreeSpaceForReading=true;
-		freeSpaceForReadingCv.notify_one();
+		if(possibleMergeWork or workFinished) return;
+		if(areMultipleOrUnsortedRanges()) return;
+		unique_lock<mutex> lk(mergeWork);
+		mergeWorkCv.wait(lk, [&] {return possibleMergeWork or workFinished;});
 	}
+	unsigned long long getSizeOfFirstRange();
+	void markPossibleFreeSpace();
+	void markPossibleMergeWork();
+	void markPossibleSortWork();
+	void notifyWorkFinished();
+	bool areMultipleOrUnsortedRanges();
 };
 

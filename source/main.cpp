@@ -36,14 +36,15 @@ void fileReading(string fileName,
 		}
 		readingRange.end = mainWorkspaceIdx;
 		readingRange.isLocked = false;
+		rangesContainer->markPossibleSortWork();
 	}
 
 	file.close();
 	fileReadingDone = true;
 }
 
-void sortAndMerge(WordsRangesContainer* rangesContainer,
-				  WordCompressed* mainWorkspace)
+void sorting(WordsRangesContainer* rangesContainer,
+		     WordCompressed* mainWorkspace)
 {
 	while(not fileReadingDone)
 	{
@@ -54,20 +55,8 @@ void sortAndMerge(WordsRangesContainer* rangesContainer,
 			sortingRange->isSorted = true;
 			sortingRange->isLocked = false;
 			rangesContainer->markPossibleFreeSpace();
-
-			continue;	
+			rangesContainer->markPossibleMergeWork();
 		}
-
-		if(rangesContainer->areMultipleRanges())
-		{
-			WordsRangeMergingParams mergingParams = rangesContainer->prepareBestRangeForMerging();
-			mergeRangesWithDuplicatesRemoval(mainWorkspace, mergingParams);
-			mergingParams.resultRange.isLocked = false;
-			rangesContainer->markPossibleFreeSpace();
-			continue;
-		}
-
-		// TODO shall wait if there is nothing to do
 	}
 
 	WordsRange* sortingRange = &rangesContainer->getRangeForSorting();
@@ -77,17 +66,43 @@ void sortAndMerge(WordsRangesContainer* rangesContainer,
 		sortingRange->isSorted = true;
 		sortingRange->isLocked = false;
 		rangesContainer->markPossibleFreeSpace();
+		rangesContainer->markPossibleMergeWork();
 
 		sortingRange = &rangesContainer->getRangeForSorting();
 	}
+}
 
-	while(rangesContainer->areMultipleRanges())
+
+void merging(WordsRangesContainer* rangesContainer,
+			 WordCompressed* mainWorkspace)
+{
+	while(not fileReadingDone)
 	{
+		rangesContainer->waitForMergingWork();
+		
 		WordsRangeMergingParams mergingParams = rangesContainer->prepareBestRangeForMerging();
-		mergeRangesWithDuplicatesRemoval(mainWorkspace, mergingParams);
-		mergingParams.resultRange.isLocked = false;
-		rangesContainer->markPossibleFreeSpace();
+			
+		if(mergingParams.end2 > 0)
+		{
+			mergeRangesWithDuplicatesRemoval(mainWorkspace, mergingParams);
+			mergingParams.resultRange.isLocked = false;
+			rangesContainer->markPossibleFreeSpace();
+		}
 	}
+
+	while(rangesContainer->areMultipleOrUnsortedRanges())
+	{
+		rangesContainer->waitForMergingWork();
+		WordsRangeMergingParams mergingParams = rangesContainer->prepareBestRangeForMerging();
+		if(mergingParams.end2>0)
+		{
+			mergeRangesWithDuplicatesRemoval(mainWorkspace, mergingParams);
+			mergingParams.resultRange.isLocked = false;
+			rangesContainer->markPossibleFreeSpace();
+		}
+	}
+
+	rangesContainer->notifyWorkFinished();
 }
 
 
@@ -106,7 +121,11 @@ int main(int argc, char *argv[])
 	vector<thread> workingThreads;
 	for(unsigned int i=0; i<WORKING_THREADS; i++)
 	{
-		workingThreads.push_back(thread(sortAndMerge, &rangesContainer, mainWorkspace));
+		workingThreads.push_back(thread(sorting, &rangesContainer, mainWorkspace));
+	}
+	for(unsigned int i=0; i<WORKING_THREADS; i++)
+	{
+		workingThreads.push_back(thread(merging, &rangesContainer, mainWorkspace));
 	}
 
 	fileReadingThread.join();
