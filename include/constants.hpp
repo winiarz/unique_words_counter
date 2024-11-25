@@ -1,7 +1,7 @@
 #pragma once
 
 constexpr unsigned int WORKING_THREADS = 12;
-constexpr unsigned int MAX_WORD_LEN = 24;
+constexpr unsigned int MAX_WORD_LEN = 48;
 constexpr unsigned int SIGNS_NUMBER = 'z'-'a';
 constexpr unsigned int TEMP_WORDS_SET_SIZE = 600;
 

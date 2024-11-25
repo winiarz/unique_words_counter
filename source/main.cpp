@@ -4,6 +4,7 @@
 #include <thread>
 #include <atomic>
 #include <vector>
+#include <set>
 #include "constants.hpp"
 #include "WordsRangesContainer.hpp"
 #include "compressWord.hpp"
@@ -15,7 +16,8 @@ atomic<bool> fileReadingDone = false;
 
 void fileReading(string fileName,
                  WordsRangesContainer* rangesContainer,
-				 WordCompressed* mainWorkspace)
+				 WordCompressed* mainWorkspace,
+				 set<string>* longWordsSet)
 {
 	fstream file(fileName, fstream::in);
 	while(not file.eof())
@@ -31,8 +33,15 @@ void fileReading(string fileName,
 
 		while((mainWorkspaceIdx<readingRange.end) and (file >> newWord))
 		{
-			mainWorkspace[mainWorkspaceIdx] = compressWord(newWord);
-			mainWorkspaceIdx++;
+			if(newWord.size() <= MAX_WORD_LEN)
+			{
+				mainWorkspace[mainWorkspaceIdx] = compressWord(newWord);
+				mainWorkspaceIdx++;
+			}
+			else
+			{
+				longWordsSet->insert(newWord);
+			}
 		}
 		readingRange.end = mainWorkspaceIdx;
 		readingRange.isLocked = false;
@@ -109,6 +118,7 @@ void merging(WordsRangesContainer* rangesContainer,
 int main(int argc, char *argv[])
 {
 	WordCompressed* mainWorkspace = new WordCompressed[WORKSPACE_SIZE];
+	set<string> longWordsSet;
 	if(argc <= 1)
 	{
 		cout << "Input filename expected" << endl;
@@ -117,7 +127,7 @@ int main(int argc, char *argv[])
 	string fileName(argv[1]);
 	WordsRangesContainer rangesContainer;
 
-	thread fileReadingThread(fileReading, fileName, &rangesContainer, mainWorkspace);
+	thread fileReadingThread(fileReading, fileName, &rangesContainer, mainWorkspace, &longWordsSet);
 	vector<thread> workingThreads;
 	for(unsigned int i=0; i<WORKING_THREADS; i++)
 	{
@@ -131,6 +141,7 @@ int main(int argc, char *argv[])
 	fileReadingThread.join();
 	for(auto& workingThread : workingThreads)
 		workingThread.join();
-	cout << "There are " << rangesContainer.getSizeOfFirstRange() << " unique words in file " << fileName << endl;
+	unsigned long long totalUniqueWordsNb = rangesContainer.getSizeOfFirstRange()+longWordsSet.size();
+	cout << "There are " << totalUniqueWordsNb << " unique words in file " << fileName << endl;
 	return 0;
 }
